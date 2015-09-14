@@ -1,0 +1,382 @@
+// 구글 마켓에 등록된 App정보 수집
+package main
+
+import (
+	"bytes"
+	"crypto/md5"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"regexp"
+	"strconv"
+	"sync"
+	"time"
+)
+
+/**
+type App struct {
+	CoverImage       string  `json:"cover_image"`
+	PackageId        string  `json:"package_id"`
+	SoftwareTitle    string  `json:"software_title"`
+	SoftwareVersion  string  `json:"software_version"`
+	DatePublished    string  `json:"date_published"`
+	CurrentRating    float64 `json:"current_rating"`
+	Reviewers        int     `json:"reviewers"`
+	CategoryName     string  `json:"category_name"`
+	Genre            string  `json:"genre"`
+	OperatingSystems string  `json:"operating_systems"`
+	ApkSize          float64 `json:"apk_size"`
+	Description      string  `json:"description"`
+	CategoryRank     int     `json:"category_rank"`
+	WholeRank        int     `json:"whole_rank"`
+}
+*/
+
+func getHTML(_url string) string {
+
+	data := url.Values{}
+	data.Set("name", "foo")
+	data.Add("surname", "bar")
+
+	r, _ := http.NewRequest("POST", _url, bytes.NewBufferString(data.Encode())) // <-- URL-encoded payload
+	r.Header.Add("Authorization", "auth_token=\"XXXXXXX\"")
+	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	//r.Header.Add("Content-Length", strconv.Itoa(len(data.Encode())))
+
+	client := &http.Client{}
+	resp, _ := client.Do(r)
+	fmt.Println(resp.Status)
+
+	return "xxxxxxxxxx"
+
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_body, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return string(_body)
+}
+
+// App 이미지 다운로드
+// @see https://www.socketloop.com/tutorials/golang-download-file-example
+func image_download(rawURL string) {
+	url := []byte(rawURL)
+
+	//h := md5.New()
+	//io.WriteString(h, url)
+	hash := fmt.Sprintf("%x", md5.Sum(url))
+	fmt.Printf(hash)
+	//fmt.Println(h)
+
+	fileName := "/tmp/go_" + hash
+	file, err := os.Create(fileName)
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+	defer file.Close()
+
+	check := http.Client{
+		CheckRedirect: func(r *http.Request, via []*http.Request) error {
+			r.URL.Opaque = r.URL.Path
+			return nil
+		},
+	}
+
+	resp, err := check.Get(rawURL) // add a filter to check redirect
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+	defer resp.Body.Close()
+	fmt.Println(resp.Status)
+
+	size, err := io.Copy(file, resp.Body)
+
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("%s with %v bytes downloaded", fileName, size)
+}
+
+// App상세 정보 수집
+func gathering(url string) {
+	fmt.Println("----------------------------------------------------------------------")
+	// @HTTP Request
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	tmp := string(body)
+	patterns := map[string]string{
+		"cover_image":       "<div class=\"cover-container\">\\s*<img class=\"cover-image\" src=\"(.*?)\" alt=\"Cover art\" aria-hidden=\"true\" itemprop=\"image\">\\s*</div>",
+		"software_title":    "<div class=\"document-title\" itemprop=\"name\">\\s*<div>\\s*(.*?)<\\/div>\\s*",
+		"software_version":  "<div class=\"content\" itemprop=\"softwareVersion\">\\s*(\\d+\\.\\d+(?:\\.\\d+)?)\\s*<\\/div>",
+		"date_published":    "<div class=\"content\" itemprop=\"datePublished\">\\s*(.*?)<\\/div>",
+		"current_rating":    "<div class=\"current-rating\" style=\"width:\\s*([0-9.]+)%\"><\\/div>",
+		"reviewers":         "<span class=\"rating-count\" (?:.*)>\\s*([0-9,]+)\\s*<\\/span>",
+		"category_name":     "<a class=\"document-subtitle category\" href=\"(?:\\/store\\/apps\\/category\\/(.*?))\">",
+		"genre":             "<span itemprop=\"genre\">\\s*(.*?)\\s*<\\/span>",
+		"operating_systems": "<div class=\"content\" itemprop=\"operatingSystems\">\\s*(.*?)\\s*<\\/div>",
+		"apk_size":          "<div class=\"content\" itemprop=\"fileSize\">\\s*([0-9\\.]+)[M|G]\\s*<\\/div>",
+	}
+
+	value := ""
+
+	app := new(App)
+	for key, pattern := range patterns {
+		re := regexp.MustCompile(pattern)
+		match := re.FindStringSubmatch(tmp)
+		//fmt.Printf("\n\n>>> %q \n", match)
+		//fmt.Println(pattern)
+		if match != nil {
+			value = match[1]
+
+			switch key {
+			case "cover_image":
+				app.CoverImage = value
+			case "software_title":
+				app.SoftwareTitle = value
+			case "software_version":
+				app.SoftwareVersion = value
+			case "date_published":
+				app.DatePublished = value
+			case "current_rating":
+				app.CurrentRating, _ = strconv.ParseFloat(value, 64)
+			case "reviewers":
+				app.Reviewers, _ = strconv.Atoi(value)
+			case "category_name":
+				app.CategoryName = value
+			case "genre":
+				app.Genre = value
+			case "operating_systems":
+				app.OperatingSystems = value
+			case "apk_size":
+				//app.ApkSize = value
+				app.ApkSize, _ = strconv.ParseFloat(value, 64)
+			}
+		}
+
+		if match != nil {
+			//fmt.Printf("\n### %s: %q\n\n\n", key, match)
+			value = match[1]
+			fmt.Printf("### %s: %s\n", key, match[1])
+		} else {
+			fmt.Printf("@@@ %s: %s\n", key, pattern)
+		}
+
+		if key == "cover_image" {
+			image_download(value)
+		}
+	}
+
+	//fmt.Printf(string(json.Marshal(app)))
+	b, err := json.MarshalIndent(app, "\t", "")
+	if err != nil {
+		fmt.Println("error:", err)
+	}
+	fmt.Println(string(b))
+
+}
+
+func apps_info(url string) {
+	// @HTTP Request
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_body, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	body := string(_body)
+	// fmt.Println(body)
+
+	// # 상단 카테고리 Layer로 부터 카테고리 정보 추출
+	pattern := `<a class="(parent-submenu-link|child-submenu-link)" href="(.*?)" title="(.*?)"`
+	re := regexp.MustCompile(pattern)
+	match := re.FindAllStringSubmatch(body, -1)
+	for i := 0; i < len(match); i++ {
+		//fmt.Println(match[i][1], " : ", match[i][2], " : ", match[i][3])
+		//fmt.Println(match[i][2], " : ", match[i][3])
+	}
+
+	// # 상단 카테고리 Layer로 부터 카테고리 정보 추출
+	pattern = `<h2>\s*<a class="title-link id-track-click" (.*) href="(.*)">(.*)</a>\s*</h2>`
+	// <h2> <a class="title-link id-track-click" data-server-cookie="CAMiLQgBGikSJwohcHJvbW90aW9uXzMwMDBlNTNfc3RhcnRlcmtpdF9hcHBzEBoYAw==" data-uitype="291" href="/store/recommended?sp=CAEwAFonCiFwcm9tb3Rpb25fMzAwMGU1M19zdGFydGVya2l0X2FwcHMQBxgD:S:ANO1ljJyVYg&amp;c=apps">신규 유저를 위한 필수 앱 </a> </h2>
+
+	re = regexp.MustCompile(pattern)
+	match = re.FindAllStringSubmatch(body, -1)
+	fmt.Println(len(match))
+
+	for i := 0; i < len(match); i++ {
+		//fmt.Println(match[i][1], " : ", match[i][2], " : ", match[i][3])
+		fmt.Println(match[i][2], " : ", match[i][3])
+	}
+}
+
+func parseDateTime() {
+	s := "2015년 9월 39일"
+	pattern := `(\d{4})\s*년\s*(\d+)\s*월\s*(\d+)\s*일`
+	re := regexp.MustCompile(pattern)
+	match := re.FindStringSubmatch(s)
+	fmt.Printf("\n\n>>> %q \n", match)
+
+	if len(match) == 4 {
+		y, _ := strconv.Atoi(match[1])
+		m, _ := strconv.Atoi(match[2])
+		m--
+		d, _ := strconv.Atoi(match[3])
+
+		//tz := time.UTC
+		//tz, _ := time.LoadLocation("KST")
+		tz := time.FixedZone("Asia/Seoul", 9*60*60)
+
+		t := time.Date(y, time.Month(m), d, 0, 0, 0, 0, tz)
+
+		fmt.Println("XXX: ", m)
+		fmt.Println("----------------------------------------")
+
+		fmt.Println(t)
+	}
+
+	layout := "2006년 1월 2일"
+	str := "2014년 11월 12일"
+	t, err := time.Parse(layout, str)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("XXXXXXXXXXXXXXX: ", t)
+	zonename, offset := time.Now().In(time.Local).Zone()
+	fmt.Println(zonename, offset)
+}
+
+func category_rank_gathergin(url string) {
+	//인기 소셜 앱
+	body := getHTML(url)
+	//fmt.Println(body)
+	apps_pattern := `<div class="card no-rationale square-cover apps small"(.*?)</span>\s*</span>\s*</div>\s*</div>\s*</div>`
+
+	app_patterns := map[string]string{
+		"id":          `<a class="card-click-target" href="/store/apps/details\?id=(.*)" aria-label="\s*(\d+)\.\s*(.*?)\s*">`,
+		"cover_image": `<img alt="(?:.*)" class="cover-image" data-cover-large="(?:.*)" data-cover-small="(?:.*)" src="(.*?)" (?:.*?)>`,
+		//"name": `<a class="card-click-target" href="/store/apps/details?id=(.*?)" aria-label="\s*(\d+)\.\s*(.*?)">`,
+		//"name": `<a class="(.*?)" href="`,
+
+		//"name": `<a class="card-click-target" href="/store/apps/details?id=(.*)"`,
+		//"xxx": ` aria-label="\s*(\d+)\s*\.(.*?)">`,
+		//"XXXXXXXXXXXXXXXXX": `<a class="card-click-target" href="(.*)" aria-label="\s*(\d+)\.(.*)">\s+<span`,
+		//"XXXXXXXXXXXXXXXXX": `">\s+(\d+)\.\s+(.*?)\s+<span`,
+		//"category_rank": `aria-label="\s*(\d+)\.\s+(.*?)\s+">`,
+		"description": `<div class="description">\s*(.*?)\s*<span class="paragraph-end">`,
+	}
+
+	re := regexp.MustCompile(apps_pattern)
+	matches := re.FindAllStringSubmatch(body, -1)
+	app := ""
+
+	//apps := make([]App, 1)
+	var current_app App
+	for _, match := range matches {
+		// fmt.Println(match[0])
+		app = match[0]
+		//fmt.Println(app)
+		fmt.Println("----------------------------------\n")
+
+		//current_app = null // new(App)
+		/**
+		app.SoftwareTitle = match[1]
+		app.CoverImage = match[4]
+		app.CategoryRank = match[4]
+		*/
+		for key, pattern := range app_patterns {
+			re = regexp.MustCompile(pattern)
+			match = re.FindStringSubmatch(app)
+
+			//fmt.Printf("%q\n\n", match); break
+
+			switch key {
+			case "id":
+				current_app.PackageId = match[1]
+				current_app.CategoryRank, _ = strconv.Atoi(match[2])
+				current_app.SoftwareTitle = match[3]
+
+			case "cover_image":
+				current_app.CoverImage = match[1]
+
+				/*
+					case "category_rank":
+						current_app.CategoryRank, _ = strconv.Atoi(match[1])
+						current_app.SoftwareTitle = match[2]
+				*/
+
+			case "description":
+				current_app.Description = match[1]
+			}
+			/**
+			fmt.Println("Key: ", key)
+			fmt.Printf("pattern: [%s]\n", pattern)
+			//fmt.Println(app)
+			// fmt.Println(len(match))
+			fmt.Printf("%q\n\n", match)
+			//			fmt.Println(match[1])
+			//			fmt.Println(match[2])
+			//			fmt.Println(match[3])
+			//			fmt.Println(match[4])
+			fmt.Println("----------------------------------\n")
+			//apps := make([]App)
+			//apps[0] = app
+			*/
+		}
+		r, _ := json.MarshalIndent(current_app, "\t", "")
+		fmt.Println(string(r))
+		fmt.Println("--------------------------------------\n\n")
+		//break
+	}
+	//fmt.Printf("%x", apps)
+}
+
+func main() {
+	var wg sync.WaitGroup
+
+	var url string
+
+	for i := 0; i < 1; i++ {
+		url = "https://play.google.com/store/apps/details?id=com.cashslide"
+		//gathering(url)
+
+		url = "https://play.google.com/store/apps/category/SOCIAL/collection/topselling_free?authuser=0"
+		category_rank_gathergin(url)
+
+		/**
+		url = "https://play.google.com/store/apps"
+		apps_info(url)
+		*/
+	}
+
+	// Wait for all HTTP fetches to complete.
+	wg.Wait()
+	time.Sleep(1 * time.Millisecond)
+}
