@@ -1,8 +1,7 @@
-package main
+package models
 
 import (
 	"encoding/json"
-	// "fmt"
 	"regexp"
 	"strconv"
 )
@@ -24,7 +23,9 @@ type App struct {
 	WholeRank        int     `json:"whole_rank"`
 }
 
-func (app *App) to_json() string {
+type Apps []App
+
+func (app *App) ToJson() string {
 	s, err := json.MarshalIndent(app, "\t", "")
 	if err != nil {
 		return ""
@@ -33,18 +34,18 @@ func (app *App) to_json() string {
 	return string(s)
 }
 
-func (app *App) parsing(html string) bool {
+func (app *App) Parsing(html string) bool {
 	patterns := map[string]string{
-		"cover_image":       "<div class=\"cover-container\">\\s*<img class=\"cover-image\" src=\"(.*?)\" alt=\"Cover art\" aria-hidden=\"true\" itemprop=\"image\">\\s*</div>",
-		"software_title":    "<div class=\"document-title\" itemprop=\"name\">\\s*<div>\\s*(.*?)<\\/div>\\s*",
-		"software_version":  "<div class=\"content\" itemprop=\"softwareVersion\">\\s*(\\d+\\.\\d+(?:\\.\\d+)?)\\s*<\\/div>",
-		"date_published":    "<div class=\"content\" itemprop=\"datePublished\">\\s*(.*?)<\\/div>",
-		"current_rating":    "<div class=\"current-rating\" style=\"width:\\s*([0-9.]+)%\"><\\/div>",
-		"reviewers":         "<span class=\"rating-count\" (?:.*)>\\s*([0-9,]+)\\s*<\\/span>",
-		"category_name":     "<a class=\"document-subtitle category\" href=\"(?:\\/store\\/apps\\/category\\/(.*?))\">",
-		"genre":             "<span itemprop=\"genre\">\\s*(.*?)\\s*<\\/span>",
-		"operating_systems": "<div class=\"content\" itemprop=\"operatingSystems\">\\s*(.*?)\\s*<\\/div>",
-		"apk_size":          "<div class=\"content\" itemprop=\"fileSize\">\\s*([0-9\\.]+)[M|G]\\s*<\\/div>",
+		"cover_image":       `<div class="cover-container">\s*<img class="cover-image" src="(.*?)" alt="Cover art" aria-hidden="true" itemprop="image">\s*</div>`,
+		"software_title":    `<div class="document-title" itemprop="name">\s*<div>\s*(.*?)<\/div>\s*`,
+		"software_version":  `<div class="content" itemprop="softwareVersion">\s*(\d+\.\d+(?:\.\d+)?)\s*<\/div>`,
+		"date_published":    `<div class="content" itemprop="datePublished">\s*(.*?)<\/div>`,
+		"current_rating":    `<div class="current-rating" style="width:\s*([0-9.]+)%"><\/div>`,
+		"reviewers":         `<span class="rating-count" (?:.*)>\s*([0-9,]+)\s*<\/span>`,
+		"category_name":     `<a class="document-subtitle category" href="(?:\/store\/apps\/category\/(.*?))">`,
+		"genre":             `<span itemprop="genre">\s*(.*?)\s*<\/span>`,
+		"operating_systems": `<div class="content" itemprop="operatingSystems">\s*(.*?)\s*<\/div>`,
+		"apk_size":          `<div class="content" itemprop="fileSize">\s*([0-9\.]+)[M|G]\s*<\/div>`,
 	}
 
 	value := ""
@@ -79,7 +80,7 @@ func (app *App) parsing(html string) bool {
 		}
 
 		if match != nil {
-			//fmt.Printf("\n### %s: %q\n\n\n", key, match)
+			// fmt.Printf("\n### %s: %q\n\n\n", key, match)
 			value = match[1]
 			// fmt.Printf("### %s: %s\n", key, match[1])
 		} else {
@@ -98,8 +99,15 @@ func (app *App) parsing(html string) bool {
 	// }
 	// fmt.Println(string(b))
 
-
 	// fmt.Println(html)
 	return true
 }
 
+func (apps Apps) ToJson() string {
+	s, err := json.MarshalIndent(apps, "\t", "")
+	if err != nil {
+		return ""
+	}
+
+	return string(s)
+}
