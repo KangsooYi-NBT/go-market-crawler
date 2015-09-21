@@ -2,7 +2,9 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 )
 
@@ -24,6 +26,28 @@ type App struct {
 }
 
 type Apps []App
+
+type AppsCategory struct {
+	App
+}
+
+func (a *AppsCategory) Parsing(html string) []string {
+	var arr []string
+	pattern := `<a class="title" href="\/store\/apps\/details\?id=(.*?)" title="(?:.*?)" `
+	re := regexp.MustCompile(pattern)
+	matches := re.FindAllStringSubmatch(html, -1)
+	if matches != nil && len(matches) > 0 {
+		for _, row := range matches {
+			arr = append(arr, row[1])
+		}
+	}
+
+	if false {
+		fmt.Println(arr)
+	}
+
+	return arr
+}
 
 func (app *App) ToJson() string {
 	s, err := json.MarshalIndent(app, "\t", "")
@@ -103,7 +127,7 @@ func (app *App) Parsing(html string) bool {
 	return true
 }
 
-func (apps Apps) ToJson() string {
+func (apps *Apps) ToJson() string {
 	s, err := json.MarshalIndent(apps, "\t", "")
 	if err != nil {
 		return ""
@@ -111,3 +135,15 @@ func (apps Apps) ToJson() string {
 
 	return string(s)
 }
+
+func (apps *Apps) SortByCategoryRank() {
+	sort.Sort(AppsByCategoryRank(*apps))
+}
+
+
+// https://golang.org/pkg/sort/
+type AppsByCategoryRank Apps
+
+func (a AppsByCategoryRank) Len() int           { return len(a) }
+func (a AppsByCategoryRank) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a AppsByCategoryRank) Less(i, j int) bool { return a[i].CategoryRank < a[j].CategoryRank }
