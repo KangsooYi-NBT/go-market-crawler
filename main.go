@@ -2,14 +2,13 @@ package main
 
 import (
 	"fmt"
-	// "sort"
 	"go-market-crawler/lib"
 	"go-market-crawler/models"
 )
 
 func main() {
 	http := new(lib.HttpClient)
-	http.SetDebugMode(true)
+	http.SetDebugMode(false)
 
 	url := ""
 	html := ""
@@ -56,13 +55,17 @@ func main() {
 			app.PackageId = package_id
 			app.Parsing(html)
 			apps = append(apps, *app)
+
+			if len(apps) > 2 {
+				break
+			}
 		}
 
 		fmt.Println(apps.ToJson())
 	}
 
 	// ASYNC by Go Routine
-	if true {
+	if !true {
 		//인기 소셜 앱 리스트
 		url = "https://play.google.com/store/apps/category/SOCIAL/collection/topselling_free?authuser=0"
 		params := lib.HttpParams{
@@ -105,5 +108,28 @@ func main() {
 		apps.SortByCategoryRank()
 
 		fmt.Println(apps.ToJson())
+	}
+
+	if true {
+		// Play! 앱 카테고리ID 추출
+		url = "https://play.google.com/store/apps"
+		html = http.Get(url)
+
+		categories := make(models.GooglePlayCategories, 0)
+		categories.Parsing(html)
+		// fmt.Println(categories.ToJson())
+
+		for _, category := range categories {
+			fmt.Println(category.Id, category.Name, category.Url)
+
+			// 카테고리별 TopSelling LIST 추출
+			// url_pattern := "https://play.google.com/store/apps/category/%s/collection/topselling_free"
+			// url = fmt.Sprintf(url_pattern, category.Id)
+
+			// params := lib.HttpParams{}
+			// html = http.Post(url, params)
+			// fmt.Println(html)
+			// break
+		}
 	}
 }

@@ -116,14 +116,6 @@ func (app *App) Parsing(html string) bool {
 		}
 	}
 
-	// //fmt.Printf(string(json.Marshal(app)))
-	// b, err := json.MarshalIndent(app, "\t", "")
-	// if err != nil {
-	// 	fmt.Println("error:", err)
-	// }
-	// fmt.Println(string(b))
-
-	// fmt.Println(html)
 	return true
 }
 
@@ -139,7 +131,6 @@ func (apps *Apps) ToJson() string {
 func (apps *Apps) SortByCategoryRank() {
 	sort.Sort(AppsByCategoryRank(*apps))
 }
-
 
 // https://golang.org/pkg/sort/
 type AppsByCategoryRank Apps
