@@ -44,7 +44,7 @@ type Category struct {
 
 type Rank struct {
 	Id         int64  `json:"id"`          //ID
-	CategoryId int    `json:"markget_category_id"` //카테고리ID
+	CategoryId int    `json:"category_id"` //카테고리ID
 	Type       string `json:"type"`        //[ topselling_free | topselling_paid | topgrossing ]
 	Ranking    int    `json:"ranking"`     //순위
 	PackageId  string `json:"package_id"`  //안드로이드 PackageID
@@ -68,7 +68,7 @@ func (self *GooglePlay) ExtractCategories() []Category {
 	html := ""
 	filename := "/tmp/google_play_category.html"
 	content, err := ioutil.ReadFile(filename)
-	if err != nil {
+	if true || err != nil {
 		//fmt.Println("---------------------------")
 		html = self.httpClient.Get(GOOGLE_CATEGORY_URL)
 		ioutil.WriteFile(filename, []byte(html), 0x777)
@@ -250,22 +250,22 @@ func (self *Category) save() {
 	}
 
 	new_category := Category{}
-	err = db.QueryRow("SELECT `id`, `name`, `text`, `url` FROM `markget_categories` WHERE url = ?", self.Url).Scan(&new_category.Id, &new_category.Name, &new_category.Text, &new_category.Url)
+	err = db.QueryRow("SELECT `id`, `name`, `text`, `url` FROM `categories` WHERE url = ?", self.Url).Scan(&new_category.Id, &new_category.Name, &new_category.Text, &new_category.Url)
 	if err != nil {
 		// INSERT
-		_, err := db.Exec("INSERT INTO `markget_categories` (`name`, `text`, `url`) VALUE (?, ?, ?)", self.Name, self.Text, self.Url)
+		_, err := db.Exec("INSERT INTO `categories` (`name`, `text`, `url`) VALUE (?, ?, ?)", self.Name, self.Text, self.Url)
 		if err != nil {
 			panic(err.Error()) // proper error handling instead of panic in your app
 		}
 
 		// SELECT
-		err = db.QueryRow("SELECT `id`, `name`, `text`, `url` FROM `markget_categories` WHERE url = ?", self.Url).Scan(&new_category.Id, &new_category.Name, &new_category.Text, &new_category.Url)
+		err = db.QueryRow("SELECT `id`, `name`, `text`, `url` FROM `categories` WHERE url = ?", self.Url).Scan(&new_category.Id, &new_category.Name, &new_category.Text, &new_category.Url)
 		if err != nil {
 			panic(err.Error()) // proper error handling instead of panic in your app
 		}
 	}
 
-	//	rows, err := db.Query("SELECT `id`, `name`, `text`, `url` FROM `markget_categories` WHERE url = ?", self.Url)
+	//	rows, err := db.Query("SELECT `id`, `name`, `text`, `url` FROM `categories` WHERE url = ?", self.Url)
 //	if err != nil {
 //		panic(err.Error())
 //	}
@@ -297,16 +297,16 @@ func (self *Rank) save() {
 	}
 
 	new_rank := Rank{}
-	err = db.QueryRow("SELECT `id`, `markget_category_id`, `type`, `ranking`, `package_id`, `created_date`, `created_time` FROM `markget_rankings` WHERE markget_category_id = ? AND type = ? AND ranking = ? AND created_date = DATE_FORMAT(NOW(), '%Y-%m-%d')", self.CategoryId, self.Type, self.Ranking).Scan(&new_rank.Id, &new_rank.CategoryId, &new_rank.Type, &new_rank.Ranking, &new_rank.PackageId, &new_rank.CreatedDate, &new_rank.CreatedTime)
+	err = db.QueryRow("SELECT `id`, `category_id`, `type`, `ranking`, `package_id`, `created_date`, `created_time` FROM `rankings` WHERE category_id = ? AND type = ? AND ranking = ? AND created_date = DATE_FORMAT(NOW(), '%Y-%m-%d')", self.CategoryId, self.Type, self.Ranking).Scan(&new_rank.Id, &new_rank.CategoryId, &new_rank.Type, &new_rank.Ranking, &new_rank.PackageId, &new_rank.CreatedDate, &new_rank.CreatedTime)
 	if err != nil {
 		// INSERT
-		_, err := db.Exec("INSERT INTO `markget_rankings` (`markget_category_id`, `type`, `ranking`, `package_id`, `created_date`, `created_time`) VALUE (?, ?, ?, ?, DATE_FORMAT(NOW(), '%Y-%m-%d'), DATE_FORMAT(NOW(), '%H:%m:%d') )", self.CategoryId, self.Type, self.Ranking, self.PackageId)
+		_, err := db.Exec("INSERT INTO `rankings` (`category_id`, `type`, `ranking`, `package_id`, `created_date`, `created_time`) VALUE (?, ?, ?, ?, DATE_FORMAT(NOW(), '%Y-%m-%d'), DATE_FORMAT(NOW(), '%H:%m:%d') )", self.CategoryId, self.Type, self.Ranking, self.PackageId)
 		if err != nil {
 			panic(err.Error()) // proper error handling instead of panic in your app
 		}
 
-		//		// SELECT
-		err = db.QueryRow("SELECT `id`, `markget_category_id`, `type`, `ranking`, `package_id`, `created_date`, `created_time` FROM `markget_rankings` WHERE markget_category_id = ? AND type = ? AND ranking = ? AND created_date = DATE_FORMAT(NOW(), '%Y-%m-%d')", self.CategoryId, self.Type, self.Ranking).Scan(&new_rank.Id, &new_rank.CategoryId, &new_rank.Type, &new_rank.Ranking, &new_rank.PackageId, &new_rank.CreatedDate, &new_rank.CreatedTime)
+		// SELECT
+		err = db.QueryRow("SELECT `id`, `category_id`, `type`, `ranking`, `package_id`, `created_date`, `created_time` FROM `rankings` WHERE category_id = ? AND type = ? AND ranking = ? AND created_date = DATE_FORMAT(NOW(), '%Y-%m-%d')", self.CategoryId, self.Type, self.Ranking).Scan(&new_rank.Id, &new_rank.CategoryId, &new_rank.Type, &new_rank.Ranking, &new_rank.PackageId, &new_rank.CreatedDate, &new_rank.CreatedTime)
 		if err != nil {
 			panic(err.Error()) // proper error handling instead of panic in your app
 		}
