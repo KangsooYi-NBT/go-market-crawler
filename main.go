@@ -9,9 +9,12 @@ import (
 	"time"
 	"strings"
 	"sync"
+	"runtime"
 )
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+//	apps()
 	play()
 //	test_regex()
 }
@@ -33,7 +36,48 @@ func test_regex() {
 			fmt.Println(row[1], " ### ", row[2])
 		}
 	}
+
+
+
 }
+
+func apps() {
+	var wg sync.WaitGroup
+
+	go_routin_cnt := 0
+
+	app := models.App{}
+//	x:= app.Fetch("com.cashslide")
+//	fmt.Println(x.ToJson())
+	fmt.Printf("----- PACKAGE_ID FETCHING [%s] -------------------------\n", (time.Now()).Format("2006-01-30 15:04:05"))
+	packages := app.FetchAppList()
+	fmt.Printf("----- PACKAGE_ID FETCHED [%s] -------------------------\n", (time.Now()).Format("2006-01-30 15:04:05"))
+
+	fmt.Printf("----- EACH PACKAGE FETCHING [%s] -------------------------\n", (time.Now()).Format("2006-01-30 15:04:05"))
+	for _, package_id := range packages {
+		go_routin_cnt++
+
+		wg.Add(1)
+		go func(package_id string) {
+			defer wg.Done()
+//			fmt.Printf("- KEY: %s\n", package_id)
+			fmt.Printf(".")
+			newApp := app.Fetch(package_id)
+			newApp.Save()
+		}(package_id)
+
+		if go_routin_cnt % 30 == 0 {
+			fmt.Printf("\n- go-routin_cnt: %d \n", go_routin_cnt)
+			wg.Wait()
+
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	wg.Wait()
+	fmt.Printf("----- EACH PACKAGE FETCHED [%s] -------------------------\n", (time.Now()).Format("2006-01-30 15:04:05"))
+	fmt.Println("--- END ---------------------------------\n")
+}
+
 
 func play() {
 	fmt.Printf("##### [%s] ###############################################\n", (time.Now()).Format("2006-01-30"))

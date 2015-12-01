@@ -1,12 +1,19 @@
 package models
 
 import (
+	"go-market-crawler/lib"
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"sort"
+//	"sort"
 	"strconv"
+
+//	"io/ioutil"
+
+	"database/sql"
+	_ "github.com/go-sql-driver/mysql"
 )
+
 
 type App struct {
 	CoverImage       string  `json:"cover_image"`
@@ -21,8 +28,8 @@ type App struct {
 	OperatingSystems string  `json:"operating_systems"`
 	ApkSize          float64 `json:"apk_size"`
 	Description      string  `json:"description"`
-	CategoryRank     int     `json:"category_rank"`
-	WholeRank        int     `json:"whole_rank"`
+//	CategoryRank     int     `json:"category_rank"`
+//	WholeRank        int     `json:"whole_rank"`
 }
 
 type Apps []App
@@ -58,7 +65,7 @@ func (app *App) ToJson() string {
 	return string(s)
 }
 
-func (app *App) Parsing(html string) bool {
+func (appx *App) Parsing(html string) App {
 	patterns := map[string]string{
 		"cover_image":       `<div class="cover-container">\s*<img class="cover-image" src="(.*?)" alt="Cover art" aria-hidden="true" itemprop="image">\s*</div>`,
 		"software_title":    `<div class="document-title" itemprop="name">\s*<div>\s*(.*?)<\/div>\s*`,
@@ -70,9 +77,12 @@ func (app *App) Parsing(html string) bool {
 		"genre":             `<span itemprop="genre">\s*(.*?)\s*<\/span>`,
 		"operating_systems": `<div class="content" itemprop="operatingSystems">\s*(.*?)\s*<\/div>`,
 		"apk_size":          `<div class="content" itemprop="fileSize">\s*([0-9\.]+)[M|G]\s*<\/div>`,
+		"package_id":		 `<link href="https://(?:.*?)?id=(.*?)" rel="canonical">`,
 	}
 
 	value := ""
+	app := App{}
+
 	for key, pattern := range patterns {
 		re := regexp.MustCompile(pattern)
 		match := re.FindStringSubmatch(html)
@@ -100,6 +110,9 @@ func (app *App) Parsing(html string) bool {
 				app.OperatingSystems = value
 			case "apk_size":
 				app.ApkSize, _ = strconv.ParseFloat(value, 64)
+
+			case "package_id":
+				app.PackageId = value
 			}
 		}
 
@@ -116,7 +129,7 @@ func (app *App) Parsing(html string) bool {
 		}
 	}
 
-	return true
+	return app
 }
 
 func (apps *Apps) ToJson() string {
@@ -128,13 +141,125 @@ func (apps *Apps) ToJson() string {
 	return string(s)
 }
 
-func (apps *Apps) SortByCategoryRank() {
-	sort.Sort(AppsByCategoryRank(*apps))
-}
+//func (apps *Apps) SortByCategoryRank() {
+//	sort.Sort(AppsByCategoryRank(*apps))
+//}
 
 // https://golang.org/pkg/sort/
-type AppsByCategoryRank Apps
+//type AppsByCategoryRank Apps
 
-func (a AppsByCategoryRank) Len() int           { return len(a) }
-func (a AppsByCategoryRank) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a AppsByCategoryRank) Less(i, j int) bool { return a[i].CategoryRank < a[j].CategoryRank }
+//func (a AppsByCategoryRank) Len() int           { return len(a) }
+//func (a AppsByCategoryRank) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+//func (a AppsByCategoryRank) Less(i, j int) bool { return a[i].CategoryRank < a[j].CategoryRank }
+
+
+
+
+func (self *App) Fetch(package_id string) App {
+	// httpClient *lib.HttpClient
+	httpClient := new(lib.HttpClient)
+	httpClient.SetDebugMode(false)
+
+	url := "https://play.google.com/store/apps/details?id=" + package_id
+	html := httpClient.Get(url)
+//	fmt.Println(html)
+	app := self.Parsing(html)
+//	fmt.Println(app.ToJson())
+	return app
+}
+
+func (self *App) FetchAppList() []string {
+	db, err := sql.Open("mysql", DSN)
+	defer db.Close()
+	if err != nil {
+		panic(err.Error())
+	}
+	db.SetMaxIdleConns(100)
+
+
+	querystring := `
+		select 	package_id
+		from 	rankings
+		where 	created_date = DATE_FORMAT(NOW(), '%Y-%m-%d')
+		group 	by package_id
+	`
+
+	// query
+	rows, err := db.Query(querystring)
+	var package_ids []string
+
+	for rows.Next() {
+		var package_id string
+		//err = db.QueryRow(querystring).Scan(&package_id)// .Scan(&new_category.Id, &new_category.Name, &new_category.Text, &new_category.Url)
+		rows.Scan(&package_id)
+//		fmt.Println(package_id)
+		package_ids = append(package_ids, package_id)
+	}
+	fmt.Println(package_ids)
+
+	return package_ids
+}
+
+
+func (self *App) Save() {
+//	fmt.Println(self.PackageId)
+//	fmt.Println(self.CategoryName)
+
+// FILE WRITE
+//	filename := "/tmp/google_play/" + self.PackageId
+//	ioutil.WriteFile(filename, []byte(self.ToJson()), 0x777)
+//	return
+
+
+
+	db, err := sql.Open("mysql", DSN)
+	defer db.Close()
+	if err != nil {
+		panic(err.Error())
+	}
+	db.SetMaxIdleConns(150)
+
+	// INSERT
+	querystring := `
+		INSERT INTO apps
+		(
+			  package_id
+			, cover_image
+			, software_title
+			, software_version
+			, date_published
+			, current_rating
+			, reviewers
+			, category_name
+			, genre
+			, operating_systems
+			, apk_size
+			, description
+			, created_date
+			, created_time
+		)
+		VALUES
+		(
+			  ?
+			, ?
+			, ?
+			, ?
+			, ?
+			, ?
+			, ?
+			, ?
+			, ?
+			, ?
+			, ?
+			, ?
+			, DATE_FORMAT(NOW(), '%Y-%m-%d')
+			, DATE_FORMAT(NOW(), '%H:%i:%s')
+		)
+	`
+	_, err = db.Exec(querystring, self.PackageId, self.CoverImage, self.SoftwareTitle, self.SoftwareVersion, self.DatePublished, self.CurrentRating, self.Reviewers, self.CategoryName, self.Genre, self.OperatingSystems, self.ApkSize, self.Description)
+	if err != nil {
+		fmt.Println(self.ToJson())
+		panic(err.Error()) // proper error handling instead of panic in your app
+	}
+}
+
