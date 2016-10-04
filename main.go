@@ -49,11 +49,11 @@ func apps() {
 	app := models.App{}
 //	x:= app.Fetch("com.cashslide")
 //	fmt.Println(x.ToJson())
-	fmt.Printf("----- PACKAGE_ID FETCHING [%s] -------------------------\n", (time.Now()).Format("2006-01-30 15:04:05"))
+	fmt.Printf("----- PACKAGE_ID FETCHING [%s] -------------------------\n", (time.Now()).Format("2006-01-02 15:04:05"))
 	packages := app.FetchAppList()
-	fmt.Printf("----- PACKAGE_ID FETCHED [%s] -------------------------\n", (time.Now()).Format("2006-01-30 15:04:05"))
+	fmt.Printf("----- PACKAGE_ID FETCHED [%s] -------------------------\n", (time.Now()).Format("2006-01-02 15:04:05"))
 
-	fmt.Printf("----- EACH PACKAGE FETCHING [%s] -------------------------\n", (time.Now()).Format("2006-01-30 15:04:05"))
+	fmt.Printf("----- EACH PACKAGE FETCHING [%s] -------------------------\n", (time.Now()).Format("2006-01-02 15:04:05"))
 	for _, package_id := range packages {
 		go_routin_cnt++
 
@@ -74,13 +74,13 @@ func apps() {
 		}
 	}
 	wg.Wait()
-	fmt.Printf("----- EACH PACKAGE FETCHED [%s] -------------------------\n", (time.Now()).Format("2006-01-30 15:04:05"))
+	fmt.Printf("----- EACH PACKAGE FETCHED [%s] -------------------------\n", (time.Now()).Format("2006-01-02 15:04:05"))
 	fmt.Println("--- END ---------------------------------\n")
 }
 
 
 func play() {
-	fmt.Printf("##### [%s] ###############################################\n", (time.Now()).Format("2006-01-30"))
+	fmt.Printf("##### [%s] ###############################################\n", (time.Now()).Local())
 
 	var wg sync.WaitGroup
 
